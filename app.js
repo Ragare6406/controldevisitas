@@ -127,17 +127,13 @@ async function openModalNuevaVisita(id = null) {
   document.getElementById('v-fin').value = '';
   document.getElementById('v-obs').value = '';
 
-  // populate clients
-  const sel = document.getElementById('v-cliente');
-  sel.innerHTML = '<option value="">Cargando clientes…</option>';
   document.getElementById('modal-visita').style.display = 'flex';
-  try {
-    if (allClientes.length === 0) allClientes = await apiFetch('/cliente');
-    sel.innerHTML = allClientes.map(c =>
-      `<option value="${c.id}">${c.empresa || 'Cliente ' + c.id}</option>`
-    ).join('');
-  } catch (e) {
-    sel.innerHTML = '<option>Error cargando clientes</option>';
+  document.getElementById('v-cliente-search').value = '';
+  document.getElementById('v-cliente').value = '';
+  document.getElementById('client-dropdown').classList.remove('open');
+  // Cargar clientes si no están en caché
+  if (allClientes.length === 0) {
+    try { allClientes = await apiFetch('/cliente'); } catch {}
   }
 }
 
@@ -451,6 +447,57 @@ async function loadProductos() {
     tb.innerHTML = `<tr><td colspan="3" class="loading-row" style="color:var(--danger)">Error al cargar productos</td></tr>`;
   }
 }
+
+// ─── BUSCADOR CLIENTE EN MODAL VISITA ────────────
+function highlight(text, q) {
+  if (!q) return text;
+  const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+  return text.replace(re, '<mark>$1</mark>');
+}
+
+function filtrarClientesDropdown() {
+  const q = document.getElementById('v-cliente-search').value.trim().toLowerCase();
+  // Si borra el texto, limpiar selección
+  document.getElementById('v-cliente').value = '';
+  abrirDropdown(q);
+}
+
+function abrirDropdown(q) {
+  if (q === undefined) q = document.getElementById('v-cliente-search').value.trim().toLowerCase();
+  const dd = document.getElementById('client-dropdown');
+  const lista = q
+    ? allClientes.filter(c =>
+        (c.empresa || '').toLowerCase().includes(q) ||
+        (c.municipio || '').toLowerCase().includes(q)
+      )
+    : allClientes;
+
+  if (lista.length === 0) {
+    dd.innerHTML = '<div class="client-option"><span class="co-empresa" style="color:var(--text-muted)">Sin resultados</span></div>';
+  } else {
+    dd.innerHTML = lista.slice(0, 50).map(c =>
+      `<div class="client-option" onclick="seleccionarCliente(${c.id}, '${(c.empresa||'').replace(/'/g,"\'")}')">
+        <div class="co-empresa">${highlight(c.empresa || '—', q)}</div>
+        <div class="co-mun">${highlight(c.municipio || '', q)}</div>
+      </div>`
+    ).join('');
+  }
+  dd.classList.add('open');
+}
+
+function seleccionarCliente(id, nombre) {
+  document.getElementById('v-cliente').value = id;
+  document.getElementById('v-cliente-search').value = nombre;
+  document.getElementById('client-dropdown').classList.remove('open');
+}
+
+// Cerrar dropdown al hacer clic fuera
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('client-search-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('client-dropdown').classList.remove('open');
+  }
+});
 
 // ─── CLOSE ON BACKDROP CLICK ─────────────────────
 ['modal-visita','modal-cliente','modal-detalle'].forEach(id => {
